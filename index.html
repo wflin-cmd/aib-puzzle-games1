@@ -3,268 +3,675 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>单图拼图游戏（拼完显文字数字）</title>
+    <title>拼图游戏（实时提示版）</title>
     <style>
-        /* 页面整体样式：居中布局+简洁风格 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
         body {
+            background-color: #f5f5f5;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-color: #f5f5f5;
-            font-family: Arial, sans-serif;
-            padding: 20px 0;
-            margin: 0;
         }
-        /* 游戏容器：包裹画布和按钮 */
-        .game-container {
-            margin-top: 15px;
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
         }
-        /* 拼图画布：核心绘图区域，加边框突出 */
-        #puzzleCanvas {
-            border: 3px solid #2c3e50;
+        /* 主容器：包含提示框和游戏区域 */
+        .main-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        /* 实时提示框 */
+        .hint-box {
+            width: 150px;
+            padding: 15px;
             background-color: #fff;
-            cursor: pointer;
-            border-radius: 4px;
+            border: 3px solid #3498db;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        /* 开始按钮：美化样式+交互反馈 */
-        #startBtn {
-            margin-top: 15px;
-            padding: 10px 25px;
+        .hint-title {
             font-size: 16px;
-            background-color: #3498db;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .correct-count {
+            font-size: 24px;
+            color: #27ae60;
+            font-weight: bold;
+        }
+        /* 按钮容器 */
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        /* 原图显示区域（放置区域）- 网格布局 */
+        .original-container {
+            width: 450px;
+            height: 300px;
+            border: 3px solid #2c3e50;
+            margin-bottom: 20px;
+            position: relative;
+            background-color: #fff;
+            display: grid;
+            grid-template-rows: repeat(2, 1fr);
+            grid-template-columns: repeat(5, 1fr);
+        }
+        /* 正确图片遮罩 */
+        .correct-img-mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.95);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+        .correct-img {
+            width: 90%;
+            height: 90%;
+            object-fit: cover;
+            border: 2px solid #2c3e50;
+        }
+        /* 网格单元格 */
+        .grid-cell {
+            border: 1px dashed #ddd;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .grid-cell:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+        .grid-cell.selected {
+            background-color: rgba(52, 152, 219, 0.2);
+            border-color: #3498db;
+        }
+        /* 打乱的拼图块容器 */
+        .pieces-container {
+            width: 800px;
+            min-height: 150px;
+            border: 2px solid #999;
+            padding: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            justify-content: center;
+        }
+        /* 拼图块样式 */
+        .puzzle-piece {
+            width: calc(450px / 5);
+            height: calc(300px / 2);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid #666;
+            background-size: cover;
+            background-position: center;
+            border-radius: 2px;
+        }
+        .puzzle-piece:hover {
+            border-color: #3498db;
+            transform: scale(1.02);
+        }
+        .puzzle-piece.selected {
+            border-color: #2ecc71;
+            box-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+        }
+        /* 结果显示容器 */
+        .result-container {
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+            padding: 20px 40px;
+            border: 2px solid #27ae60;
+            border-radius: 6px;
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .result-title {
+            font-size: 24px;
+            color: #27ae60;
+            margin-bottom: 10px;
+        }
+        .password-text {
+            font-size: 32px;
+            color: #e74c3c;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        /* 按钮样式 */
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, transform 0.1s;
+            border: 2px solid transparent;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        #startBtn {
+            background-color: #3498db;
+            border-color: #2980b9;
         }
         #startBtn:hover {
             background-color: #2980b9;
         }
-        /* 拼完后显示的结果容器：初始隐藏，居中对齐 */
-        .result-container {
-            margin-top: 20px;
+        #checkBtn {
+            background-color: #2ecc71;
+            border-color: #27ae60;
+            display: none;
+        }
+        #checkBtn:hover {
+            background-color: #27ae60;
+        }
+        #undoBtn {
+            background-color: #f39c12;
+            border-color: #e67e22;
+            display: none;
+        }
+        #undoBtn:hover {
+            background-color: #e67e22;
+        }
+        #viewImgBtn {
+            background-color: #9b59b6;
+            border-color: #8e44ad;
+            display: none;
+        }
+        #viewImgBtn:hover {
+            background-color: #8e44ad;
+        }
+        #closeImgBtn {
+            margin-top: 10px;
+            padding: 5px 15px;
+            font-size: 14px;
+            background-color: #e74c3c;
+            border-color: #c0392b;
+        }
+        #closeImgBtn:hover {
+            background-color: #c0392b;
+        }
+        /* 遮罩提示 */
+        .mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            z-index: 10;
+            border: 3px solid #fff;
+        }
+        /* 提示文本 */
+        .hint-text {
+            margin-bottom: 15px;
+            color: #666;
+            font-size: 14px;
             text-align: center;
-            display: none; /* 初始隐藏，拼完后显示 */
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            line-height: 1.5;
         }
-        /* 结果标题文字：突出显示 */
-        .result-title {
-            font-size: 22px;
-            color: #27ae60;
-            margin: 0 0 10px 0;
-            font-weight: bold;
-        }
-        /* 结果数字：加大字号+醒目颜色 */
-        .result-number {
-            font-size: 28px;
-            color: #e74c3c;
-            margin: 10px 0;
-            font-weight: bold;
-        }
-        /* 结果说明文字：辅助提示 */
-        .result-desc {
-            font-size: 16px;
-            color: #7f8c8d;
-            margin: 10px 0 0 0;
+        .view-count-hint {
+            color: #9b59b6;
+            font-size: 13px;
+            margin-top: 5px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <h1>拼图挑战（拼完看提示）</h1>
-    <!-- 游戏核心区域：画布+开始按钮 -->
-    <div class="game-container">
-        <canvas id="puzzleCanvas" width="450" height="300"></canvas>
-        <button id="startBtn">开始拼图</button>
+    <h1>拼图挑战（实时提示版）</h1>
+    <div class="hint-text">提示：先点击下方拼图块选择，再点击上方网格位置放置，可撤销上一步操作<br>可点击“观看图片”按钮查看正确拼图（最多两次），首次选择拼图块后自动隐藏</div>
+    <div class="btn-container">
+        <button id="startBtn">开始游戏</button>
+        <button id="viewImgBtn">观看图片</button>
+        <button id="undoBtn">撤销上一步</button>
+        <button id="checkBtn">检查拼图</button>
     </div>
-    <!-- 拼图完成后显示的内容：文字+数字（初始隐藏） -->
+    <div class="view-count-hint" id="viewCountHint">剩余观看次数：2次</div>
+    
+    <!-- 主容器：提示框 + 游戏区域 -->
+    <div class="main-container">
+        <!-- 实时提示框 -->
+        <div class="hint-box">
+            <div class="hint-title">正确块数</div>
+            <div class="correct-count" id="correctCount">0</div>
+            <div class="hint-desc">/ 10块</div>
+        </div>
+        
+        <!-- 原图显示区域（网格布局） -->
+        <div class="original-container" id="originalContainer">
+            <!-- 正确图片遮罩 -->
+            <div class="correct-img-mask" id="correctImgMask">
+                <img src="" alt="正确拼图" class="correct-img" id="correctImg">
+                <button id="closeImgBtn">关闭</button>
+            </div>
+            <!-- 网格单元格动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 打乱的拼图块容器 -->
+    <div class="pieces-container" id="piecesContainer"></div>
+    
+    <!-- 结果显示容器 -->
     <div class="result-container" id="resultContainer">
         <div class="result-title">恭喜完成拼图！</div>
-        <!-- 可修改：这里的文字和数字按需替换（比如活动编号、领取码等） -->
-        <div class="result-text">本次活动专属编码：</div>
-        <div class="result-number">ACT-2024-0518</div>
-        <div class="result-desc">凭编码可在班主任处领取小礼品</div>
+        <div class="password-text">密码：9527</div>
     </div>
 
     <script>
-        // -------------------------- 1. 获取页面关键元素 --------------------------
-        const canvas = document.getElementById('puzzleCanvas'); // 拼图画布
-        const ctx = canvas.getContext('2d'); // Canvas 2D绘图上下文（核心绘图工具）
-        const startBtn = document.getElementById('startBtn'); // 开始按钮
-        const resultContainer = document.getElementById('resultContainer'); // 结果容器（文字+数字）
+        // 获取元素
+        const startBtn = document.getElementById('startBtn');
+        const checkBtn = document.getElementById('checkBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const viewImgBtn = document.getElementById('viewImgBtn');
+        const originalContainer = document.getElementById('originalContainer');
+        const piecesContainer = document.getElementById('piecesContainer');
+        const resultContainer = document.getElementById('resultContainer');
+        const correctImgMask = document.getElementById('correctImgMask');
+        const correctImg = document.getElementById('correctImg');
+        const closeImgBtn = document.getElementById('closeImgBtn');
+        const viewCountHint = document.getElementById('viewCountHint');
+        const correctCount = document.getElementById('correctCount');
         
-        // -------------------------- 2. 拼图核心配置（可按需修改） --------------------------
-        const puzzleRow = 2; // 拼图行数（2行）
-        const puzzleCol = 5; // 拼图列数（5列）
-        const totalPieces = puzzleRow * puzzleCol; // 总块数=2*5=10（满足≤10块要求）
-        // 单个拼图块尺寸：按画布尺寸自动计算，无需手动改
-        const pieceWidth = canvas.width / puzzleCol; 
-        const pieceHeight = canvas.height / puzzleRow;
+        // 拼图配置
+        const puzzleRow = 2;
+        const puzzleCol = 5;
+        const totalPieces = puzzleRow * puzzleCol;
+        let pieceWidth, pieceHeight;
+        let puzzlePieces = [];
+        let selectedPiece = null; // 选中的拼图块
+        let isCompleted = false;
+        let gameImage = null;
+        let gridCells = []; // 网格单元格数组
+        let operationHistory = []; // 操作历史记录
+        let viewImgCount = 2; // 观看图片次数限制
+        let hasClickedPiece = false; // 是否首次点击拼图块
+        let imageUrl = ''; // 存储图片URL
         
-        // -------------------------- 3. 拼图数据存储 --------------------------
-        let puzzlePieces = []; // 存储所有拼图块信息（位置、是否空白等）
-        let emptyPieceIndex = totalPieces - 1; // 空白块索引（默认最后一块）
-        let isCompleted = false; // 拼图是否完成的标记（true=完成）
-
-        // -------------------------- 4. 加载拼图图片（仅需1张，可自定义） --------------------------
-        const puzzleImage = new Image();
-        // 关键：替换为你的拼图图片路径（本地图片需和HTML同文件夹，例：puzzle.jpg）
-        // 示例：本地图片→puzzleImage.src = "活动通知图.jpg"；在线图片→puzzleImage.src = "https://xxx.com/puzzle.jpg"
-        puzzleImage.src = "https://s3.bmp.ovh/imgs/2025/12/06/bf109858b7e37b62.jpg";
-        puzzleImage.crossOrigin = "anonymous"; // 解决在线图片跨域问题（本地图可忽略）
-
-        // -------------------------- 5. 初始化拼图：切割图片+生成拼图块 --------------------------
-        function initPuzzle() {
-            puzzlePieces = []; // 清空旧数据，避免重复
-            isCompleted = false; // 重置完成状态
-            resultContainer.style.display = "none"; // 隐藏结果（重新开始时不显示）
-
-            // 循环生成每一块拼图（按“行→列”顺序切割原图）
+        // 预加载图片
+        window.onload = function() {
+            // 生成随机图片URL
+            const randomSeed = Math.floor(Math.random() * 10000);
+            imageUrl = `https://picsum.photos/450/300?random=${randomSeed}`;
+            
+            gameImage = new Image();
+            gameImage.crossOrigin = 'anonymous';
+            gameImage.src = imageUrl;
+            gameImage.onload = function() {
+                correctImg.src = imageUrl; // 设置正确图片
+                initGridLayout(); // 初始化网格布局
+                updateCorrectCount(); // 初始化正确块数显示
+            };
+            gameImage.onerror = function() {
+                alert("图片加载失败，请刷新页面重试！");
+            };
+        };
+        
+        // 初始化网格布局
+        function initGridLayout() {
+            originalContainer.innerHTML = '';
+            // 重新添加正确图片遮罩
+            originalContainer.appendChild(correctImgMask);
+            gridCells = [];
             for (let row = 0; row < puzzleRow; row++) {
                 for (let col = 0; col < puzzleCol; col++) {
-                    const index = row * puzzleCol + col; // 当前块在数组中的索引
-
-                    // 最后一块设为空白（不显示图片）
-                    if (index === totalPieces - 1) {
-                        puzzlePieces.push({
-                            row: row, // 块在画布中的行位置
-                            col: col, // 块在画布中的列位置
-                            isEmpty: true // 标记为空白块
-                        });
-                    } else {
-                        // 非空白块：存储原图截取信息（从原图哪里切出这一块）
-                        puzzlePieces.push({
-                            row: row,
-                            col: col,
-                            isEmpty: false,
-                            imgRow: row * pieceHeight, // 原图截取起始行（Y轴）
-                            imgCol: col * pieceWidth,  // 原图截取起始列（X轴）
-                            imgWidth: pieceWidth,     // 原图截取宽度
-                            imgHeight: pieceHeight    // 原图截取高度
-                        });
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.addEventListener('click', handleGridCellClick);
+                    originalContainer.appendChild(cell);
+                    gridCells.push({
+                        element: cell,
+                        row,
+                        col,
+                        hasPiece: false,
+                        pieceInfo: null
+                    });
+                }
+            }
+        }
+        
+        // 初始化游戏
+        startBtn.addEventListener('click', initGame);
+        
+        function initGame() {
+            if (!gameImage || !gameImage.complete) {
+                alert("图片加载中，请稍候！");
+                return;
+            }
+            
+            // 重置状态
+            isCompleted = false;
+            selectedPiece = null;
+            hasClickedPiece = false;
+            viewImgCount = 2; // 重置观看次数
+            viewCountHint.textContent = `剩余观看次数：${viewImgCount}次`;
+            resultContainer.style.display = 'none';
+            piecesContainer.innerHTML = '';
+            
+            // 显示相关按钮
+            checkBtn.style.display = 'inline-block';
+            undoBtn.style.display = 'inline-block';
+            viewImgBtn.style.display = 'inline-block';
+            startBtn.style.display = 'none'; // 隐藏开始按钮
+            
+            // 显示原图和遮罩提示
+            originalContainer.innerHTML = '';
+            originalContainer.appendChild(correctImgMask); // 添加遮罩
+            const imgElement = document.createElement('img');
+            imgElement.src = gameImage.src;
+            imgElement.style.width = '100%';
+            imgElement.style.height = '100%';
+            imgElement.style.objectFit = 'cover';
+            originalContainer.appendChild(imgElement);
+            
+            const mask = document.createElement('div');
+            mask.className = 'mask';
+            mask.textContent = '3秒后开始拼图...';
+            originalContainer.appendChild(mask);
+            
+            // 3秒后初始化拼图
+            setTimeout(() => {
+                mask.remove();
+                initGridLayout(); // 重建网格
+                startPuzzle(); // 生成拼图块
+                updateCorrectCount(); // 初始化正确块数显示
+            }, 3000);
+        }
+        
+        // 生成拼图块
+        function startPuzzle() {
+            const originalWidth = originalContainer.offsetWidth;
+            const originalHeight = originalContainer.offsetHeight;
+            
+            pieceWidth = originalWidth / puzzleCol;
+            pieceHeight = originalHeight / puzzleRow;
+            
+            // 清空并重新生成拼图块
+            puzzlePieces = [];
+            const pieceIndexes = Array.from({length: totalPieces}, (_, i) => i);
+            // 打乱顺序
+            const shuffledIndexes = pieceIndexes.sort(() => Math.random() - 0.5);
+            
+            for (let i = 0; i < totalPieces; i++) {
+                const index = shuffledIndexes[i];
+                const row = Math.floor(index / puzzleCol);
+                const col = index % puzzleCol;
+                
+                const piece = document.createElement('div');
+                piece.className = 'puzzle-piece';
+                piece.dataset.row = row;
+                piece.dataset.col = col;
+                piece.dataset.index = index;
+                
+                // 计算背景位置
+                const bgX = -col * pieceWidth;
+                const bgY = -row * pieceHeight;
+                piece.style.backgroundImage = `url(${imageUrl})`;
+                piece.style.backgroundPosition = `${bgX}px ${bgY}px`;
+                piece.style.backgroundSize = `${originalWidth}px ${originalHeight}px`;
+                
+                // 添加点击事件
+                piece.addEventListener('click', handlePieceClick);
+                
+                piecesContainer.appendChild(piece);
+                
+                puzzlePieces.push({
+                    element: piece,
+                    row,
+                    col,
+                    index,
+                    placed: false,
+                    gridRow: -1,
+                    gridCol: -1
+                });
+            }
+        }
+        
+        // 点击拼图块选择
+        function handlePieceClick(e) {
+            if (isCompleted) return;
+            
+            // 标记首次点击拼图块
+            if (!hasClickedPiece) {
+                hasClickedPiece = true;
+                correctImgMask.style.display = 'none'; // 隐藏正确图片
+            }
+            
+            // 取消之前的选择
+            if (selectedPiece) {
+                selectedPiece.element.classList.remove('selected');
+            }
+            
+            // 选择当前拼图块（未放置的）
+            const piece = e.target;
+            const pieceInfo = puzzlePieces.find(p => 
+                p.row == piece.dataset.row && p.col == piece.dataset.col && !p.placed
+            );
+            
+            if (pieceInfo) {
+                selectedPiece = pieceInfo;
+                piece.classList.add('selected');
+                
+                // 高亮网格提示（可选）
+                gridCells.forEach(cell => {
+                    cell.element.classList.remove('selected');
+                });
+            } else {
+                selectedPiece = null;
+            }
+        }
+        
+        // 点击网格单元格放置拼图块
+        function handleGridCellClick(e) {
+            if (!selectedPiece || isCompleted) return;
+            
+            const cell = e.target;
+            const cellRow = parseInt(cell.dataset.row);
+            const cellCol = parseInt(cell.dataset.col);
+            
+            // 检查单元格是否已放置拼图块
+            const cellInfo = gridCells.find(c => c.row === cellRow && c.col === cellCol);
+            if (cellInfo && !cellInfo.hasPiece) {
+                // 记录操作历史（包含之前的状态）
+                const operation = {
+                    type: 'place',
+                    pieceInfo: {
+                        row: selectedPiece.row,
+                        col: selectedPiece.col,
+                        index: selectedPiece.index
+                    },
+                    cellInfo: {
+                        row: cellRow,
+                        col: cellCol
+                    },
+                    prevCellInfo: cellInfo.pieceInfo // 之前的拼图块（如果有）
+                };
+                operationHistory.push(operation);
+                
+                // 创建拼图块元素并添加到单元格
+                const pieceElement = document.createElement('div');
+                pieceElement.style.width = '100%';
+                pieceElement.style.height = '100%';
+                pieceElement.style.backgroundImage = selectedPiece.element.style.backgroundImage;
+                pieceElement.style.backgroundPosition = selectedPiece.element.style.backgroundPosition;
+                pieceElement.style.backgroundSize = selectedPiece.element.style.backgroundSize;
+                
+                cell.innerHTML = '';
+                cell.appendChild(pieceElement);
+                
+                // 更新状态
+                cellInfo.hasPiece = true;
+                cellInfo.pieceInfo = selectedPiece;
+                
+                selectedPiece.placed = true;
+                selectedPiece.gridRow = cellRow;
+                selectedPiece.gridCol = cellCol;
+                selectedPiece.element.style.display = 'none'; // 隐藏原拼图块
+                
+                // 取消选择
+                selectedPiece.element.classList.remove('selected');
+                selectedPiece = null;
+                
+                // 启用撤销按钮（如果有操作历史）
+                undoBtn.disabled = operationHistory.length === 0;
+                
+                // 更新正确块数显示
+                updateCorrectCount();
+            }
+        }
+        
+        // 撤销上一步操作
+        undoBtn.addEventListener('click', undoLastOperation);
+        
+        function undoLastOperation() {
+            if (operationHistory.length === 0 || isCompleted) return;
+            
+            // 获取最后一次操作
+            const lastOp = operationHistory.pop();
+            if (lastOp.type === 'place') {
+                // 找到对应的拼图块和单元格
+                const pieceInfo = puzzlePieces.find(p => 
+                    p.row === lastOp.pieceInfo.row && 
+                    p.col === lastOp.pieceInfo.col && 
+                    p.index === lastOp.pieceInfo.index
+                );
+                
+                const cellInfo = gridCells.find(c => 
+                    c.row === lastOp.cellInfo.row && 
+                    c.col === lastOp.cellInfo.col
+                );
+                
+                if (pieceInfo && cellInfo) {
+                    // 恢复拼图块显示
+                    pieceInfo.placed = false;
+                    pieceInfo.gridRow = -1;
+                    pieceInfo.gridCol = -1;
+                    pieceInfo.element.style.display = 'block';
+                    
+                    // 清空单元格
+                    cellInfo.hasPiece = false;
+                    cellInfo.pieceInfo = lastOp.prevCellInfo;
+                    cellInfo.element.innerHTML = '';
+                    
+                    // 取消当前选择
+                    if (selectedPiece) {
+                        selectedPiece.element.classList.remove('selected');
+                        selectedPiece = null;
                     }
+                    
+                    // 更新正确块数显示
+                    updateCorrectCount();
                 }
             }
-
-            shufflePuzzle(); // 打乱拼图（确保有解）
-            drawPuzzle();    // 绘制拼图（显示给用户）
+            
+            // 禁用撤销按钮（如果没有操作历史）
+            undoBtn.disabled = operationHistory.length === 0;
         }
-
-        // -------------------------- 6. 打乱拼图：仅交换空白块和相邻块，确保有解 --------------------------
-        function shufflePuzzle() {
-            let shuffleTimes = 1000; // 打乱次数（越多越乱，1000次足够）
-            while (shuffleTimes--) {
-                // 获取空白块的相邻块索引（可交换的块）
-                const adjacentIndices = getAdjacentIndices(emptyPieceIndex);
-                // 随机选一个相邻块交换
-                const randomIndex = adjacentIndices[Math.floor(Math.random() * adjacentIndices.length)];
-                // 交换空白块和选中块
-                [puzzlePieces[emptyPieceIndex], puzzlePieces[randomIndex]] = [puzzlePieces[randomIndex], puzzlePieces[emptyPieceIndex]];
-                emptyPieceIndex = randomIndex; // 更新空白块位置
+        
+        // 检查拼图是否正确
+        checkBtn.addEventListener('click', checkPuzzle);
+        
+        function checkPuzzle() {
+            if (isCompleted) return;
+            
+            // 检查是否所有块都已放置
+            const allPlaced = puzzlePieces.every(p => p.placed);
+            if (!allPlaced) {
+                alert('还有拼图块未放置，请继续完成！');
+                return;
             }
-        }
-
-        // -------------------------- 7. 辅助函数：获取空白块的相邻块索引 --------------------------
-        function getAdjacentIndices(emptyIndex) {
-            const emptyRow = Math.floor(emptyIndex / puzzleCol); // 空白块的行
-            const emptyCol = emptyIndex % puzzleCol; // 空白块的列
-            const adjacent = []; // 存储可交换的相邻块索引
-
-            // 上方有块：空白块不在第一行
-            if (emptyRow > 0) adjacent.push((emptyRow - 1) * puzzleCol + emptyCol);
-            // 下方有块：空白块不在最后一行
-            if (emptyRow < puzzleRow - 1) adjacent.push((emptyRow + 1) * puzzleCol + emptyCol);
-            // 左侧有块：空白块不在第一列
-            if (emptyCol > 0) adjacent.push(emptyRow * puzzleCol + (emptyCol - 1));
-            // 右侧有块：空白块不在最后一列
-            if (emptyCol < puzzleCol - 1) adjacent.push(emptyRow * puzzleCol + (emptyCol + 1));
-
-            return adjacent;
-        }
-
-        // -------------------------- 8. 绘制拼图：将所有块画到Canvas上 --------------------------
-        function drawPuzzle() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布，避免残留
-
-            // 循环绘制每一块
-            puzzlePieces.forEach((piece, index) => {
-                const drawX = piece.col * pieceWidth; // 块在画布的X坐标
-                const drawY = piece.row * pieceHeight; // 块在画布的Y坐标
-
-                // 非空白块：绘制图片（从原图截取对应区域）
-                if (!piece.isEmpty) {
-                    ctx.drawImage(
-                        puzzleImage,          // 要绘制的原图
-                        piece.imgCol,         // 原图截取起始X
-                        piece.imgRow,         // 原图截取起始Y
-                        piece.imgWidth,       // 原图截取宽度
-                        piece.imgHeight,      // 原图截取高度
-                        drawX,                // 画布绘制X
-                        drawY,                // 画布绘制Y
-                        pieceWidth,           // 画布绘制宽度
-                        pieceHeight           // 画布绘制高度
-                    );
+            
+            // 检查每个块的位置是否正确
+            let isCorrect = true;
+            puzzlePieces.forEach(piece => {
+                if (piece.row !== piece.gridRow || piece.col !== piece.gridCol) {
+                    isCorrect = false;
                 }
-
-                // 绘制块边框：区分每一块，更清晰
-                ctx.strokeStyle = "#bdc3c7"; // 边框颜色（浅灰）
-                ctx.lineWidth = 2;           // 边框宽度
-                ctx.strokeRect(drawX, drawY, pieceWidth, pieceHeight); // 画边框
             });
-        }
-
-        // -------------------------- 9. 检测拼图是否完成 --------------------------
-        function checkCompletion() {
-            for (let i = 0; i < puzzlePieces.length; i++) {
-                if (puzzlePieces[i].isEmpty) continue; // 跳过空白块
-
-                // 计算当前块的正确索引（正确位置=行*列数+列）
-                const correctIndex = puzzlePieces[i].row * puzzleCol + puzzlePieces[i].col;
-                // 若当前索引≠正确索引，说明没拼完
-                if (i !== correctIndex) return false;
+            
+            if (isCorrect) {
+                isCompleted = true;
+                resultContainer.style.display = 'block';
+                checkBtn.style.display = 'none';
+                undoBtn.style.display = 'none';
+                viewImgBtn.style.display = 'none'; // 隐藏观看图片按钮
+            } else {
+                alert('拼图位置不正确，请重新调整！');
             }
-            return true; // 所有块位置正确，拼图完成
         }
-
-        // -------------------------- 10. 点击画布：交换拼图块（核心交互） --------------------------
-        canvas.addEventListener('click', (e) => {
-            if (isCompleted) return; // 完成后不响应点击
-
-            // 计算点击在画布内的相对坐标（排除页面边框影响）
-            const rect = canvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
-
-            // 计算点击的是哪一块
-            const clickedCol = Math.floor(clickX / pieceWidth);
-            const clickedRow = Math.floor(clickY / pieceHeight);
-            const clickedIndex = clickedRow * puzzleCol + clickedCol;
-
-            // 若点击块是空白块的相邻块，才交换
-            const adjacentIndices = getAdjacentIndices(emptyPieceIndex);
-            if (adjacentIndices.includes(clickedIndex)) {
-                // 交换块
-                [puzzlePieces[emptyPieceIndex], puzzlePieces[clickedIndex]] = [puzzlePieces[clickedIndex], puzzlePieces[emptyPieceIndex]];
-                emptyPieceIndex = clickedIndex; // 更新空白块位置
-                drawPuzzle(); // 重新绘制拼图
-
-                // 检查是否完成，完成则显示文字和数字
-                if (checkCompletion()) {
-                    isCompleted = true;
-                    resultContainer.style.display = "block"; // 显示结果（文字+数字）
-                }
+        
+        // 观看图片按钮点击事件
+        viewImgBtn.addEventListener('click', function() {
+            if (viewImgCount <= 0 || isCompleted) return;
+            
+            viewImgCount--;
+            viewCountHint.textContent = `剩余观看次数：${viewImgCount}次`;
+            
+            // 显示正确图片
+            correctImgMask.style.display = 'flex';
+            
+            // 如果次数用完，禁用按钮
+            if (viewImgCount <= 0) {
+                viewImgBtn.disabled = true;
+                viewImgBtn.style.opacity = '0.6';
             }
         });
-
-        // -------------------------- 11. 点击开始按钮：重新初始化拼图 --------------------------
-        startBtn.addEventListener('click', initPuzzle);
-
-        // -------------------------- 12. 图片加载完成后：自动初始化拼图 --------------------------
-        // 避免图片没加载完就绘制，导致显示异常
-        puzzleImage.onload = initPuzzle;
+        
+        // 关闭图片按钮点击事件
+        closeImgBtn.addEventListener('click', function() {
+            correctImgMask.style.display = 'none';
+        });
+        
+        // 点击空白处关闭图片（可选）
+        correctImgMask.addEventListener('click', function(e) {
+            if (e.target === correctImgMask) {
+                correctImgMask.style.display = 'none';
+            }
+        });
+        
+        // 更新正确块数显示
+        function updateCorrectCount() {
+            let count = 0;
+            puzzlePieces.forEach(piece => {
+                if (piece.placed && piece.row === piece.gridRow && piece.col === piece.gridCol) {
+                    count++;
+                }
+            });
+            correctCount.textContent = count;
+        }
     </script>
 </body>
 </html>
