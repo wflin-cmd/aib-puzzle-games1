@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单图拼图游戏（拼完显文字数字）</title>
+    <style>
+        /* 页面整体样式：居中布局+简洁风格 */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f5f5f5;
+            font-family: Arial, sans-serif;
+            padding: 20px 0;
+            margin: 0;
+        }
+        /* 游戏容器：包裹画布和按钮 */
+        .game-container {
+            margin-top: 15px;
+        }
+        /* 拼图画布：核心绘图区域，加边框突出 */
+        #puzzleCanvas {
+            border: 3px solid #2c3e50;
+            background-color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        /* 开始按钮：美化样式+交互反馈 */
+        #startBtn {
+            margin-top: 15px;
+            padding: 10px 25px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #startBtn:hover {
+            background-color: #2980b9;
+        }
+        /* 拼完后显示的结果容器：初始隐藏，居中对齐 */
+        .result-container {
+            margin-top: 20px;
+            text-align: center;
+            display: none; /* 初始隐藏，拼完后显示 */
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        /* 结果标题文字：突出显示 */
+        .result-title {
+            font-size: 22px;
+            color: #27ae60;
+            margin: 0 0 10px 0;
+            font-weight: bold;
+        }
+        /* 结果数字：加大字号+醒目颜色 */
+        .result-number {
+            font-size: 28px;
+            color: #e74c3c;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        /* 结果说明文字：辅助提示 */
+        .result-desc {
+            font-size: 16px;
+            color: #7f8c8d;
+            margin: 10px 0 0 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>拼图挑战（拼完看提示）</h1>
+    <!-- 游戏核心区域：画布+开始按钮 -->
+    <div class="game-container">
+        <canvas id="puzzleCanvas" width="450" height="300"></canvas>
+        <button id="startBtn">开始拼图</button>
+    </div>
+    <!-- 拼图完成后显示的内容：文字+数字（初始隐藏） -->
+    <div class="result-container" id="resultContainer">
+        <div class="result-title">恭喜完成拼图！</div>
+        <!-- 可修改：这里的文字和数字按需替换（比如活动编号、领取码等） -->
+        <div class="result-text">本次活动专属编码：</div>
+        <div class="result-number">ACT-2024-0518</div>
+        <div class="result-desc">凭编码可在班主任处领取小礼品</div>
+    </div>
+
+    <script>
+        // -------------------------- 1. 获取页面关键元素 --------------------------
+        const canvas = document.getElementById('puzzleCanvas'); // 拼图画布
+        const ctx = canvas.getContext('2d'); // Canvas 2D绘图上下文（核心绘图工具）
+        const startBtn = document.getElementById('startBtn'); // 开始按钮
+        const resultContainer = document.getElementById('resultContainer'); // 结果容器（文字+数字）
+        
+        // -------------------------- 2. 拼图核心配置（可按需修改） --------------------------
+        const puzzleRow = 2; // 拼图行数（2行）
+        const puzzleCol = 5; // 拼图列数（5列）
+        const totalPieces = puzzleRow * puzzleCol; // 总块数=2*5=10（满足≤10块要求）
+        // 单个拼图块尺寸：按画布尺寸自动计算，无需手动改
+        const pieceWidth = canvas.width / puzzleCol; 
+        const pieceHeight = canvas.height / puzzleRow;
+        
+        // -------------------------- 3. 拼图数据存储 --------------------------
+        let puzzlePieces = []; // 存储所有拼图块信息（位置、是否空白等）
+        let emptyPieceIndex = totalPieces - 1; // 空白块索引（默认最后一块）
+        let isCompleted = false; // 拼图是否完成的标记（true=完成）
+
+        // -------------------------- 4. 加载拼图图片（仅需1张，可自定义） --------------------------
+        const puzzleImage = new Image();
+        // 关键：替换为你的拼图图片路径（本地图片需和HTML同文件夹，例：puzzle.jpg）
+        // 示例：本地图片→puzzleImage.src = "活动通知图.jpg"；在线图片→puzzleImage.src = "https://xxx.com/puzzle.jpg"
+        puzzleImage.src = "https://s3.bmp.ovh/imgs/2025/12/06/bf109858b7e37b62.jpg";
+        puzzleImage.crossOrigin = "anonymous"; // 解决在线图片跨域问题（本地图可忽略）
+
+        // -------------------------- 5. 初始化拼图：切割图片+生成拼图块 --------------------------
+        function initPuzzle() {
+            puzzlePieces = []; // 清空旧数据，避免重复
+            isCompleted = false; // 重置完成状态
+            resultContainer.style.display = "none"; // 隐藏结果（重新开始时不显示）
+
+            // 循环生成每一块拼图（按“行→列”顺序切割原图）
+            for (let row = 0; row < puzzleRow; row++) {
+                for (let col = 0; col < puzzleCol; col++) {
+                    const index = row * puzzleCol + col; // 当前块在数组中的索引
+
+                    // 最后一块设为空白（不显示图片）
+                    if (index === totalPieces - 1) {
+                        puzzlePieces.push({
+                            row: row, // 块在画布中的行位置
+                            col: col, // 块在画布中的列位置
+                            isEmpty: true // 标记为空白块
+                        });
+                    } else {
+                        // 非空白块：存储原图截取信息（从原图哪里切出这一块）
+                        puzzlePieces.push({
+                            row: row,
+                            col: col,
+                            isEmpty: false,
+                            imgRow: row * pieceHeight, // 原图截取起始行（Y轴）
+                            imgCol: col * pieceWidth,  // 原图截取起始列（X轴）
+                            imgWidth: pieceWidth,     // 原图截取宽度
+                            imgHeight: pieceHeight    // 原图截取高度
+                        });
+                    }
+                }
+            }
+
+            shufflePuzzle(); // 打乱拼图（确保有解）
+            drawPuzzle();    // 绘制拼图（显示给用户）
+        }
+
+        // -------------------------- 6. 打乱拼图：仅交换空白块和相邻块，确保有解 --------------------------
+        function shufflePuzzle() {
+            let shuffleTimes = 1000; // 打乱次数（越多越乱，1000次足够）
+            while (shuffleTimes--) {
+                // 获取空白块的相邻块索引（可交换的块）
+                const adjacentIndices = getAdjacentIndices(emptyPieceIndex);
+                // 随机选一个相邻块交换
+                const randomIndex = adjacentIndices[Math.floor(Math.random() * adjacentIndices.length)];
+                // 交换空白块和选中块
+                [puzzlePieces[emptyPieceIndex], puzzlePieces[randomIndex]] = [puzzlePieces[randomIndex], puzzlePieces[emptyPieceIndex]];
+                emptyPieceIndex = randomIndex; // 更新空白块位置
+            }
+        }
+
+        // -------------------------- 7. 辅助函数：获取空白块的相邻块索引 --------------------------
+        function getAdjacentIndices(emptyIndex) {
+            const emptyRow = Math.floor(emptyIndex / puzzleCol); // 空白块的行
+            const emptyCol = emptyIndex % puzzleCol; // 空白块的列
+            const adjacent = []; // 存储可交换的相邻块索引
+
+            // 上方有块：空白块不在第一行
+            if (emptyRow > 0) adjacent.push((emptyRow - 1) * puzzleCol + emptyCol);
+            // 下方有块：空白块不在最后一行
+            if (emptyRow < puzzleRow - 1) adjacent.push((emptyRow + 1) * puzzleCol + emptyCol);
+            // 左侧有块：空白块不在第一列
+            if (emptyCol > 0) adjacent.push(emptyRow * puzzleCol + (emptyCol - 1));
+            // 右侧有块：空白块不在最后一列
+            if (emptyCol < puzzleCol - 1) adjacent.push(emptyRow * puzzleCol + (emptyCol + 1));
+
+            return adjacent;
+        }
+
+        // -------------------------- 8. 绘制拼图：将所有块画到Canvas上 --------------------------
+        function drawPuzzle() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布，避免残留
+
+            // 循环绘制每一块
+            puzzlePieces.forEach((piece, index) => {
+                const drawX = piece.col * pieceWidth; // 块在画布的X坐标
+                const drawY = piece.row * pieceHeight; // 块在画布的Y坐标
+
+                // 非空白块：绘制图片（从原图截取对应区域）
+                if (!piece.isEmpty) {
+                    ctx.drawImage(
+                        puzzleImage,          // 要绘制的原图
+                        piece.imgCol,         // 原图截取起始X
+                        piece.imgRow,         // 原图截取起始Y
+                        piece.imgWidth,       // 原图截取宽度
+                        piece.imgHeight,      // 原图截取高度
+                        drawX,                // 画布绘制X
+                        drawY,                // 画布绘制Y
+                        pieceWidth,           // 画布绘制宽度
+                        pieceHeight           // 画布绘制高度
+                    );
+                }
+
+                // 绘制块边框：区分每一块，更清晰
+                ctx.strokeStyle = "#bdc3c7"; // 边框颜色（浅灰）
+                ctx.lineWidth = 2;           // 边框宽度
+                ctx.strokeRect(drawX, drawY, pieceWidth, pieceHeight); // 画边框
+            });
+        }
+
+        // -------------------------- 9. 检测拼图是否完成 --------------------------
+        function checkCompletion() {
+            for (let i = 0; i < puzzlePieces.length; i++) {
+                if (puzzlePieces[i].isEmpty) continue; // 跳过空白块
+
+                // 计算当前块的正确索引（正确位置=行*列数+列）
+                const correctIndex = puzzlePieces[i].row * puzzleCol + puzzlePieces[i].col;
+                // 若当前索引≠正确索引，说明没拼完
+                if (i !== correctIndex) return false;
+            }
+            return true; // 所有块位置正确，拼图完成
+        }
+
+        // -------------------------- 10. 点击画布：交换拼图块（核心交互） --------------------------
+        canvas.addEventListener('click', (e) => {
+            if (isCompleted) return; // 完成后不响应点击
+
+            // 计算点击在画布内的相对坐标（排除页面边框影响）
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            // 计算点击的是哪一块
+            const clickedCol = Math.floor(clickX / pieceWidth);
+            const clickedRow = Math.floor(clickY / pieceHeight);
+            const clickedIndex = clickedRow * puzzleCol + clickedCol;
+
+            // 若点击块是空白块的相邻块，才交换
+            const adjacentIndices = getAdjacentIndices(emptyPieceIndex);
+            if (adjacentIndices.includes(clickedIndex)) {
+                // 交换块
+                [puzzlePieces[emptyPieceIndex], puzzlePieces[clickedIndex]] = [puzzlePieces[clickedIndex], puzzlePieces[emptyPieceIndex]];
+                emptyPieceIndex = clickedIndex; // 更新空白块位置
+                drawPuzzle(); // 重新绘制拼图
+
+                // 检查是否完成，完成则显示文字和数字
+                if (checkCompletion()) {
+                    isCompleted = true;
+                    resultContainer.style.display = "block"; // 显示结果（文字+数字）
+                }
+            }
+        });
+
+        // -------------------------- 11. 点击开始按钮：重新初始化拼图 --------------------------
+        startBtn.addEventListener('click', initPuzzle);
+
+        // -------------------------- 12. 图片加载完成后：自动初始化拼图 --------------------------
+        // 避免图片没加载完就绘制，导致显示异常
+        puzzleImage.onload = initPuzzle;
+    </script>
+</body>
+</html>
