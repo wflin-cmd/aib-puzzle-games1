@@ -182,7 +182,7 @@
             font-weight: bold;
             letter-spacing: 2px;
         }
-        /* 腾讯文档表格容器 */
+        /* 腾讯文档表格容器 - 关键：相对定位 + overflow:hidden 裁剪内容 */
         .tencent-doc-container {
             margin-top: 3vw;
             display: none;
@@ -193,6 +193,20 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             padding: 3vw;
             animation: fadeIn 0.5s ease;
+            overflow: hidden; /* 核心：隐藏超出容器的内容 */
+            position: relative; /* 为遮罩层提供定位参考 */
+        }
+        /* 核心修改：纯白色块覆盖二维码（高度加大到200px） */
+        .qrcode-mask {
+            position: absolute;
+            top: 10px;    /* 二维码顶部位置 */
+            right: 10px;  /* 二维码右侧位置 */
+            width: 130px; /* 宽度 */
+            height: 200px;/* 高度加大到200px（从上到下长度） */
+            background-color: #ffffff; /* 纯白色，与背景融合 */
+            z-index: 9999;/* 最高层级，确保覆盖所有内容 */
+            pointer-events: none; /* 不影响表单其他操作 */
+            border: none; /* 无边框，无违和感 */
         }
         .tencent-doc-title {
             font-size: 4.5vw;
@@ -201,13 +215,16 @@
             text-align: center;
             font-weight: bold;
         }
+        /* iframe样式 - 优化裁剪，适配截图 */
         .tencent-doc-iframe {
-            width: 100%;
-            height: 600px;
+            width: 105%; /* 适度超出，避免过度裁剪内容 */
+            height: 700px; /* 增加高度，适配截图表单长度 */
             border: none;
             border-radius: 1vw;
-            /* 隐藏iframe溢出内容，辅助隐藏按钮 */
-            overflow: hidden;
+            margin-left: -2%; /* 小幅左移，减少内容丢失 */
+            margin-top: -50px; /* 小幅上移，隐藏顶部导航 */
+            position: relative;
+            z-index: 1; /* 确保在遮罩下方 */
         }
         /* 淡入动画 */
         @keyframes fadeIn {
@@ -305,13 +322,7 @@
             margin-top: 1vw;
             text-align: center;
         }
-        /* 隐藏腾讯文档/ WPS表单的邀请填写按钮相关样式 */
-        /* 父页面样式辅助隐藏（跨域时可能需结合JS） */
-        .tencent-doc-container iframe {
-            position: relative;
-            z-index: 1;
-        }
-        /* 媒体查询：大屏设备优化 */
+        /* 媒体查询：大屏设备优化（高度加大到220px） */
         @media (min-width: 768px) {
             .main-container {
                 flex-direction: row;
@@ -380,8 +391,20 @@
                 font-size: 20px;
                 margin-bottom: 15px;
             }
+            /* 大屏下iframe裁剪参数调整 */
             .tencent-doc-iframe {
-                height: 700px;
+                width: 105%;
+                height: 800px;
+                margin-left: -2%;
+                margin-top: -60px;
+            }
+            /* 大屏下白色遮罩（高度加大到220px） */
+            .qrcode-mask {
+                top: 15px;
+                right: 15px;
+                width: 140px;
+                height: 220px; /* 大屏高度加大到220px */
+                background-color: #ffffff;
             }
         }
     </style>
@@ -426,11 +449,13 @@
         <div class="password-text">密码：9527</div>
     </div>
     
-    <!-- 腾讯文档表格容器 -->
+    <!-- 腾讯文档表格容器 - 纯白色块遮罩二维码 -->
     <div class="tencent-doc-container" id="tencentDocContainer">
         <div class="tencent-doc-title">请填写信息收集表</div>
-        <!-- 替换为你的腾讯文档嵌入链接 -->
-        <iframe class="tencent-doc-iframe" id="docIframe" src="https://www.wenjuan.com/s/UZBZJvLclA/"></iframe>
+        <!-- 纯白色块遮罩层（覆盖二维码） -->
+        <div class="qrcode-mask"></div>
+        <!-- 替换为你的问卷嵌入链接 -->
+        <iframe class="tencent-doc-iframe" id="docIframe" src="https://www.wjx.top/vm/YDFWHrG.aspx"></iframe>
     </div>
 
     <script>
@@ -449,6 +474,7 @@
         const viewCountHint = document.getElementById('viewCountHint');
         const correctCount = document.getElementById('correctCount');
         const docIframe = document.getElementById('docIframe');
+        const qrcodeMask = document.querySelector('.qrcode-mask'); // 白色遮罩层
         
         // 拼图配置：改为2行3列，总共6块
         const puzzleRow = 2;
@@ -470,25 +496,40 @@
             if (puzzlePieces.length > 0 && !isCompleted) {
                 updatePieceSizes();
             }
+            // 自适应调整白色遮罩位置
+            adjustQrcodeMaskPosition();
         });
         
-        // 向iframe注入样式隐藏邀请填写按钮（需同域或允许跨域，否则失效）
+        // 自适应调整白色遮罩位置（精准覆盖二维码）
+        function adjustQrcodeMaskPosition() {
+            if (!tencentDocContainer || tencentDocContainer.style.display !== 'block') return;
+            // 已默认将高度设为200px，如需微调可取消下面注释修改
+            // qrcodeMask.style.top = '10px';
+            // qrcodeMask.style.right = '10px';
+            // qrcodeMask.style.width = '130px';
+            // qrcodeMask.style.height = '200px'; // 高度固定200px
+        }
+        
+        // 向iframe注入样式（强制隐藏二维码，双重保障）
         function injectStyleToIframe() {
             try {
                 const iframeDoc = docIframe.contentDocument || docIframe.contentWindow.document;
                 if (iframeDoc) {
                     const style = document.createElement('style');
                     style.textContent = `
-                        /* 隐藏腾讯文档/ WPS表单的邀请填写按钮 */
-                        .invite-btn, .wps-form-share-btn, .form-share-btn, ._inviteBtn,
-                        [class*="invite"], [class*="share"], [id*="invite"], [id*="share"] {
+                        /* 强制隐藏所有二维码相关元素 */
+                        [class*="qrcode"], [id*="qrcode"], .qrcode,
+                        .weixinghaoma, .ewm-box, .qr-code, .ewm-img,
+                        /* 禁止二维码区域交互 */
+                        [onclick*="qrcode"], [href*="qrcode"],
+                        /* 问卷星右上角二维码容器 */
+                        .header-right, .form-header .right {
                             display: none !important;
                             visibility: hidden !important;
                             opacity: 0 !important;
-                        }
-                        /* 隐藏顶部导航栏（如果需要） */
-                        .header, .top-nav, [class*="header"], [class*="nav"] {
-                            display: none !important;
+                            pointer-events: none !important;
+                            width: 0 !important;
+                            height: 0 !important;
                         }
                     `;
                     iframeDoc.head.appendChild(style);
@@ -501,8 +542,8 @@
         // 监听iframe加载完成
         docIframe.addEventListener('load', function() {
             injectStyleToIframe();
-            // 延迟再次注入，确保元素加载完成
-            setTimeout(injectStyleToIframe, 1000);
+            setTimeout(injectStyleToIframe, 1000); // 延迟再次注入
+            setTimeout(adjustQrcodeMaskPosition, 500); // 校准遮罩位置
         });
         
         // 预加载图片
@@ -527,7 +568,6 @@
         // 初始化网格布局
         function initGridLayout() {
             originalContainer.innerHTML = '';
-            // 重新添加正确图片遮罩
             originalContainer.appendChild(correctImgMask);
             gridCells = [];
             for (let row = 0; row < puzzleRow; row++) {
@@ -557,7 +597,6 @@
             pieceWidth = originalWidth / puzzleCol;
             pieceHeight = originalHeight / puzzleRow;
             
-            // 更新所有拼图块尺寸和背景
             puzzlePieces.forEach(piece => {
                 piece.element.style.width = `${pieceWidth}px`;
                 piece.element.style.height = `${pieceHeight}px`;
@@ -582,22 +621,22 @@
             isCompleted = false;
             selectedPiece = null;
             hasClickedPiece = false;
-            viewImgCount = 2; // 重置观看次数
+            viewImgCount = 2;
             viewCountHint.textContent = `剩余观看次数：${viewImgCount}次`;
             resultContainer.style.display = 'none';
-            tencentDocContainer.style.display = 'none'; // 隐藏腾讯文档容器
+            tencentDocContainer.style.display = 'none';
             piecesContainer.innerHTML = '';
-            piecesContainer.style.display = 'flex'; // 显示拼图块容器
+            piecesContainer.style.display = 'flex';
             
-            // 显示相关按钮
+            // 显示按钮
             checkBtn.style.display = 'inline-block';
             undoBtn.style.display = 'inline-block';
             viewImgBtn.style.display = 'inline-block';
-            startBtn.style.display = 'none'; // 隐藏开始按钮
+            startBtn.style.display = 'none';
             
             // 显示原图和遮罩提示
             originalContainer.innerHTML = '';
-            originalContainer.appendChild(correctImgMask); // 添加遮罩
+            originalContainer.appendChild(correctImgMask);
             const imgElement = document.createElement('img');
             imgElement.src = gameImage.src;
             imgElement.style.width = '100%';
@@ -613,9 +652,9 @@
             // 3秒后初始化拼图
             setTimeout(() => {
                 mask.remove();
-                initGridLayout(); // 重建网格
-                startPuzzle(); // 生成拼图块
-                updateCorrectCount(); // 初始化正确块数显示
+                initGridLayout();
+                startPuzzle();
+                updateCorrectCount();
             }, 3000);
         }
         
@@ -630,7 +669,6 @@
             // 清空并重新生成拼图块
             puzzlePieces = [];
             const pieceIndexes = Array.from({length: totalPieces}, (_, i) => i);
-            // 打乱顺序
             const shuffledIndexes = pieceIndexes.sort(() => Math.random() - 0.5);
             
             for (let i = 0; i < totalPieces; i++) {
@@ -677,7 +715,7 @@
             // 标记首次点击拼图块
             if (!hasClickedPiece) {
                 hasClickedPiece = true;
-                correctImgMask.style.display = 'none'; // 隐藏正确图片
+                correctImgMask.style.display = 'none';
             }
             
             // 取消之前的选择
@@ -715,7 +753,7 @@
             // 检查单元格是否已放置拼图块
             const cellInfo = gridCells.find(c => c.row === cellRow && c.col === cellCol);
             if (cellInfo && !cellInfo.hasPiece) {
-                // 记录操作历史（包含之前的状态）
+                // 记录操作历史
                 const operation = {
                     type: 'place',
                     pieceInfo: {
@@ -727,7 +765,7 @@
                         row: cellRow,
                         col: cellCol
                     },
-                    prevCellInfo: cellInfo.pieceInfo // 之前的拼图块（如果有）
+                    prevCellInfo: cellInfo.pieceInfo
                 };
                 operationHistory.push(operation);
                 
@@ -749,13 +787,13 @@
                 selectedPiece.placed = true;
                 selectedPiece.gridRow = cellRow;
                 selectedPiece.gridCol = cellCol;
-                selectedPiece.element.style.display = 'none'; // 隐藏原拼图块
+                selectedPiece.element.style.display = 'none';
                 
                 // 取消选择
                 selectedPiece.element.classList.remove('selected');
                 selectedPiece = null;
                 
-                // 启用撤销按钮（如果有操作历史）
+                // 启用撤销按钮
                 undoBtn.disabled = operationHistory.length === 0;
                 
                 // 更新正确块数显示
@@ -807,7 +845,7 @@
                 }
             }
             
-            // 禁用撤销按钮（如果没有操作历史）
+            // 禁用撤销按钮
             undoBtn.disabled = operationHistory.length === 0;
         }
         
@@ -836,16 +874,18 @@
                 isCompleted = true;
                 // 隐藏拼图块容器
                 piecesContainer.style.display = 'none';
-                // 隐藏结果容器，显示腾讯文档容器
+                // 显示腾讯文档容器
                 resultContainer.style.display = 'none';
                 tencentDocContainer.style.display = 'block';
-                // 延迟注入样式，确保iframe加载完成
+                // 校准白色遮罩位置
+                adjustQrcodeMaskPosition();
+                // 延迟注入样式
                 setTimeout(injectStyleToIframe, 500);
-                // 隐藏相关按钮
+                // 隐藏按钮
                 checkBtn.style.display = 'none';
                 undoBtn.style.display = 'none';
                 viewImgBtn.style.display = 'none';
-                viewCountHint.style.display = 'none'; // 隐藏观看次数提示
+                viewCountHint.style.display = 'none';
             } else {
                 alert('拼图位置不正确，请重新调整！');
             }
