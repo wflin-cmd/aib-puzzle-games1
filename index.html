@@ -157,6 +157,63 @@
             border-color: #2ecc71;
             box-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
         }
+        /* 结果显示容器 */
+        .result-container {
+            margin-top: 3vw; /* 拼图完成后会调整此间距 */
+            text-align: center;
+            display: none;
+            padding: 4vw;
+            border: 2px solid #27ae60;
+            border-radius: 2vw;
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 90vw;
+            max-width: 400px;
+            transition: all 0.3s ease; /* 过渡效果 */
+        }
+        .result-title {
+            font-size: 5vw;
+            color: #27ae60;
+            margin-bottom: 2vw;
+        }
+        .password-text {
+            font-size: 6vw;
+            color: #e74c3c;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        /* 腾讯文档表格容器 */
+        .tencent-doc-container {
+            margin-top: 3vw;
+            display: none;
+            width: 90vw;
+            max-width: 800px;
+            background-color: #fff;
+            border-radius: 2vw;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 3vw;
+            animation: fadeIn 0.5s ease;
+        }
+        .tencent-doc-title {
+            font-size: 4.5vw;
+            color: #2c3e50;
+            margin-bottom: 2vw;
+            text-align: center;
+            font-weight: bold;
+        }
+        .tencent-doc-iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+            border-radius: 1vw;
+            /* 隐藏iframe溢出内容，辅助隐藏按钮 */
+            overflow: hidden;
+        }
+        /* 淡入动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         /* 按钮样式 */
         button {
             padding: 3vw 5vw;
@@ -248,7 +305,12 @@
             margin-top: 1vw;
             text-align: center;
         }
-
+        /* 隐藏腾讯文档/ WPS表单的邀请填写按钮相关样式 */
+        /* 父页面样式辅助隐藏（跨域时可能需结合JS） */
+        .tencent-doc-container iframe {
+            position: relative;
+            z-index: 1;
+        }
         /* 媒体查询：大屏设备优化 */
         @media (min-width: 768px) {
             .main-container {
@@ -290,6 +352,12 @@
             .mask {
                 font-size: 20px;
             }
+            .result-title {
+                font-size: 24px;
+            }
+            .password-text {
+                font-size: 32px;
+            }
             /* 大屏下拼图块容器优化 */
             .pieces-container {
                 padding: 15px;
@@ -298,6 +366,22 @@
             }
             .puzzle-piece {
                 border-radius: 4px;
+            }
+            .result-container {
+                margin-top: 20px;
+            }
+            /* 大屏下腾讯文档容器优化 */
+            .tencent-doc-container {
+                margin-top: 20px;
+                padding: 20px;
+                border-radius: 12px;
+            }
+            .tencent-doc-title {
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
+            .tencent-doc-iframe {
+                height: 700px;
             }
         }
     </style>
@@ -335,6 +419,19 @@
     
     <!-- 打乱的拼图块容器 -->
     <div class="pieces-container" id="piecesContainer"></div>
+    
+    <!-- 结果显示容器（备用，实际使用腾讯文档容器） -->
+    <div class="result-container" id="resultContainer">
+        <div class="result-title">恭喜完成拼图！</div>
+        <div class="password-text">密码：9527</div>
+    </div>
+    
+    <!-- 腾讯文档表格容器 -->
+    <div class="tencent-doc-container" id="tencentDocContainer">
+        <div class="tencent-doc-title">请填写信息收集表</div>
+        <!-- 替换为你的腾讯文档嵌入链接 -->
+        <iframe class="tencent-doc-iframe" id="docIframe" src="https://www.wenjuan.com/s/UZBZJvLclA/"></iframe>
+    </div>
 
     <script>
         // 获取元素
@@ -344,11 +441,14 @@
         const viewImgBtn = document.getElementById('viewImgBtn');
         const originalContainer = document.getElementById('originalContainer');
         const piecesContainer = document.getElementById('piecesContainer');
+        const resultContainer = document.getElementById('resultContainer');
+        const tencentDocContainer = document.getElementById('tencentDocContainer');
         const correctImgMask = document.getElementById('correctImgMask');
         const correctImg = document.getElementById('correctImg');
         const closeImgBtn = document.getElementById('closeImgBtn');
         const viewCountHint = document.getElementById('viewCountHint');
         const correctCount = document.getElementById('correctCount');
+        const docIframe = document.getElementById('docIframe');
         
         // 拼图配置：改为2行3列，总共6块
         const puzzleRow = 2;
@@ -364,14 +464,45 @@
         let viewImgCount = 2; // 观看图片次数限制
         let hasClickedPiece = false; // 是否首次点击拼图块
         let imageUrl = ''; // 存储图片URL
-        // 问卷星表格链接（请替换为你自己的问卷星链接）
-        const questionnaireUrl = 'https://www.wenjuan.com/s/UZBZJvLclA/'; // 这里替换为实际的问卷星链接
         
         // 监听窗口大小变化，重新计算尺寸
         window.addEventListener('resize', function() {
             if (puzzlePieces.length > 0 && !isCompleted) {
                 updatePieceSizes();
             }
+        });
+        
+        // 向iframe注入样式隐藏邀请填写按钮（需同域或允许跨域，否则失效）
+        function injectStyleToIframe() {
+            try {
+                const iframeDoc = docIframe.contentDocument || docIframe.contentWindow.document;
+                if (iframeDoc) {
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        /* 隐藏腾讯文档/ WPS表单的邀请填写按钮 */
+                        .invite-btn, .wps-form-share-btn, .form-share-btn, ._inviteBtn,
+                        [class*="invite"], [class*="share"], [id*="invite"], [id*="share"] {
+                            display: none !important;
+                            visibility: hidden !important;
+                            opacity: 0 !important;
+                        }
+                        /* 隐藏顶部导航栏（如果需要） */
+                        .header, .top-nav, [class*="header"], [class*="nav"] {
+                            display: none !important;
+                        }
+                    `;
+                    iframeDoc.head.appendChild(style);
+                }
+            } catch (e) {
+                console.log('注入样式失败（跨域限制）：', e);
+            }
+        }
+        
+        // 监听iframe加载完成
+        docIframe.addEventListener('load', function() {
+            injectStyleToIframe();
+            // 延迟再次注入，确保元素加载完成
+            setTimeout(injectStyleToIframe, 1000);
         });
         
         // 预加载图片
@@ -453,6 +584,8 @@
             hasClickedPiece = false;
             viewImgCount = 2; // 重置观看次数
             viewCountHint.textContent = `剩余观看次数：${viewImgCount}次`;
+            resultContainer.style.display = 'none';
+            tencentDocContainer.style.display = 'none'; // 隐藏腾讯文档容器
             piecesContainer.innerHTML = '';
             piecesContainer.style.display = 'flex'; // 显示拼图块容器
             
@@ -703,14 +836,16 @@
                 isCompleted = true;
                 // 隐藏拼图块容器
                 piecesContainer.style.display = 'none';
+                // 隐藏结果容器，显示腾讯文档容器
+                resultContainer.style.display = 'none';
+                tencentDocContainer.style.display = 'block';
+                // 延迟注入样式，确保iframe加载完成
+                setTimeout(injectStyleToIframe, 500);
                 // 隐藏相关按钮
                 checkBtn.style.display = 'none';
                 undoBtn.style.display = 'none';
                 viewImgBtn.style.display = 'none';
-                viewCountHint.style.display = 'none';
-                // 跳转到问卷星表格（新窗口打开）
-                window.open(questionnaireUrl, '_blank');
-                // 如果需要在当前窗口跳转，使用：window.location.href = questionnaireUrl;
+                viewCountHint.style.display = 'none'; // 隐藏观看次数提示
             } else {
                 alert('拼图位置不正确，请重新调整！');
             }
